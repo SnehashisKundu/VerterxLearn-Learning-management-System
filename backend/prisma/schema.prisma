@@ -66,7 +66,29 @@ model User {
   auditLogs               AuditLog[]
   refreshTokens           RefreshToken[]
 
+  studentIdCard      StudentIdCard?
+  attendanceSessions AttendanceSession[]
+  attendances        Attendance[]
+
+  //PasswordResetToken 
+  passwordResetTokens PasswordResetToken[]
+
   @@map("users")
+}
+
+model PasswordResetToken {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  tokenHash String   @unique @map("token_hash") @db.VarChar(255)
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(6)
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("password_reset_tokens")
 }
 
 model Role {
@@ -108,19 +130,20 @@ model Course {
 
   instructor User @relation(fields: [instructorId], references: [id])
 
-  modules           Module[]
-  enrollments       Enrollment[]
-  assignments       Assignment[]
-  aiChatSessions    AIChatSession[]
-  documentChunks    DocumentChunk[]
-  studyPlans        StudyPlan[]
-  recommendations   Recommendation[]
-  discussionThreads DiscussionThread[]
-  announcements     Announcement[]
-  courseApprovals   CourseApproval[]
-  topicMasteries    TopicMastery[]
-  certificates      Certificate[]
-  payments          Payment[]
+  modules            Module[]
+  enrollments        Enrollment[]
+  assignments        Assignment[]
+  aiChatSessions     AIChatSession[]
+  documentChunks     DocumentChunk[]
+  studyPlans         StudyPlan[]
+  recommendations    Recommendation[]
+  discussionThreads  DiscussionThread[]
+  announcements      Announcement[]
+  courseApprovals    CourseApproval[]
+  topicMasteries     TopicMastery[]
+  certificates       Certificate[]
+  payments           Payment[]
+  attendanceSessions AttendanceSession[]
 
   @@index([instructorId])
   @@index([status])
@@ -304,6 +327,7 @@ model QuizQuestion {
   quizId       String  @map("quiz_id") @db.Uuid
   questionText String? @map("question_text")
   questionType String? @map("question_type") @db.VarChar(20)
+  difficulty   String  @default("medium") @db.VarChar(20)
   orderIndex   Int?    @map("order_index")
 
   quiz    Quiz         @relation(fields: [quizId], references: [id], onDelete: Cascade)
@@ -311,6 +335,7 @@ model QuizQuestion {
   answers QuizAnswer[]
 
   @@index([quizId])
+  @@index([difficulty])
   @@map("quiz_questions")
 }
 
@@ -373,11 +398,28 @@ model Certificate {
 
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  templateId String? @map("template_id") @db.Uuid
+
+  template CertificateTemplate? @relation(fields: [templateId],references: [id],onDelete: SetNull)
 
   @@unique([userId, courseId])
   @@index([userId])
   @@index([courseId])
   @@map("certificates")
+}
+
+model CertificateTemplate {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @db.VarChar(150)
+  templateUrl String   @map("template_url")
+  isActive    Boolean  @default(false) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  certificates Certificate[]
+
+  @@index([isActive])
+  @@map("certificate_templates")
 }
 
 model Badge {
@@ -491,21 +533,24 @@ model Flashcard {
 // ============================================================
 
 model DocumentChunk {
-  id         String   @id @default(uuid()) @db.Uuid
-  courseId   String   @map("course_id") @db.Uuid
-  lectureId  String?  @map("lecture_id") @db.Uuid
-  content    String
-  chunkIndex Int      @map("chunk_index")
-  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  id           String   @id @default(uuid()) @db.Uuid
+  courseId     String   @map("course_id") @db.Uuid
+  lectureId    String?  @map("lecture_id") @db.Uuid
+  content      String
+  chunkIndex   Int      @map("chunk_index")
+  embedding    Unsupported("vector(1536)")?
+  startSeconds Int?     @map("start_seconds")
+  endSeconds   Int?     @map("end_seconds")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   course  Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
   lecture Lectures? @relation(fields: [lectureId], references: [id], onDelete: Cascade)
 
   @@index([courseId])
   @@index([lectureId])
+  @@index([lectureId, startSeconds, endSeconds])
   @@map("document_chunks")
 }
-
 // ============================================================
 // AI RECOMMENDATIONS
 // ============================================================
@@ -756,4 +801,51 @@ model ProcessingJob {
   @@index([status])
   @@index([entityType, entityId])
   @@map("processing_jobs")
+}
+
+// ============================================================
+// STUDENT ID CARD & ATTENDANCE
+// ============================================================
+
+model StudentIdCard {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @unique @map("user_id") @db.Uuid
+  cardNumber String   @unique @map("card_number") @db.VarChar(50)
+  qrToken    String   @unique @map("qr_token")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("student_id_cards")
+}
+
+model AttendanceSession {
+  id           String    @id @default(uuid()) @db.Uuid
+  courseId     String    @map("course_id") @db.Uuid
+  instructorId String    @map("instructor_id") @db.Uuid
+  startedAt    DateTime  @default(now()) @map("started_at") @db.Timestamptz(6)
+  endedAt      DateTime? @map("ended_at") @db.Timestamptz(6)
+
+  course      Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  instructor  User         @relation(fields: [instructorId], references: [id])
+  attendances Attendance[]
+
+  @@index([courseId])
+  @@index([instructorId])
+  @@map("attendance_sessions")
+}
+
+model Attendance {
+  id        String   @id @default(uuid()) @db.Uuid
+  sessionId String   @map("session_id") @db.Uuid
+  studentId String   @map("student_id") @db.Uuid
+  scannedAt DateTime @default(now()) @map("scanned_at") @db.Timestamptz(6)
+
+  session AttendanceSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  student User              @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, studentId])
+  @@index([studentId])
+  @@map("attendances")
 }

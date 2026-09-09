@@ -174,3 +174,66 @@ export const updateLectureProgress = async (
     },
   });
 };
+
+export const getCourseProgress = async (
+  courseId: string,
+  userId: string,
+) => {
+  const enrollment = await prisma.enrollment.findUnique({
+    where: {
+      userId_courseId: {
+        userId,
+        courseId,
+      },
+    },
+  });
+
+  if (!enrollment) {
+    throw new Error(
+      "You are not enrolled in this course",
+    );
+  }
+
+  const totalLectures = await prisma.lectures.count({
+    where: {
+      module: {
+        courseId,
+      },
+    },
+  });
+
+  const completedLectures =
+    await prisma.lectureProgress.count({
+      where: {
+        enrollmentId: enrollment.id,
+        completed: true,
+      },
+    });
+
+  const progressPercent =
+    totalLectures === 0
+      ? 0
+      : Number(
+          (
+            (completedLectures / totalLectures) *
+            100
+          ).toFixed(2),
+        );
+
+  await prisma.enrollment.update({
+    where: {
+      id: enrollment.id,
+    },
+    data: {
+      progressPercent,
+    },
+  });
+
+  return {
+    courseId,
+    enrollmentId: enrollment.id,
+    totalLectures,
+    completedLectures,
+    progressPercent,
+  };
+};

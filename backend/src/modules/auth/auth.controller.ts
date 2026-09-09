@@ -11,6 +11,8 @@ import {
   loginUser,
   refreshAccessToken,
   logoutUser,
+  forgotPassword as forgotPasswordService,
+  resetPassword as resetPasswordService,
 } from "./auth.service";
 
 export const register = async (
@@ -218,4 +220,28 @@ export const logout = async (
       message: "Something went wrong",
     });
   }
+};
+
+export const forgotPassword = async (
+  req: Request,
+  res: Response
+) => {
+  const result = await forgotPasswordService(req.body);
+
+  res.status(200).json({
+    message:
+      "If an account exists with this email, a password reset link has been sent",
+    ...(result && {
+      resetToken: result.token,
+    }),
+  });
+};
+
+export const resetPassword = async (
+  req: Request,
+  res: Response
+) => {
+  const result = await resetPasswordService(req.body);
+
+  res.status(200).json(result);
 };

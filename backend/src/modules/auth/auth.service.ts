@@ -1,5 +1,9 @@
 import bcrypt from "bcrypt";
-import { createHash, randomUUID } from "node:crypto";
+import {
+  createHash,
+  randomBytes,
+  randomUUID,
+} from "node:crypto";
 
 import { prisma } from "../../lib/prisma";
 import {
@@ -12,6 +16,8 @@ import type {
   RegisterInput,
   LoginInput,
   RefreshTokenInput,
+  ForgotPasswordInput,
+  ResetPasswordInput,
 } from "./auth.validation";
 
 const SALT_ROUNDS = 12;
@@ -20,10 +26,22 @@ const hashRefreshToken = (token: string): string => {
   return createHash("sha256").update(token).digest("hex");
 };
 
+const hashPasswordResetToken = (token: string): string => {
+  return createHash("sha256").update(token).digest("hex");
+};
+
 const getRefreshTokenExpiry = (): Date => {
   const expiresAt = new Date();
 
   expiresAt.setDate(expiresAt.getDate() + 7);
+
+  return expiresAt;
+};
+
+const getPasswordResetTokenExpiry = (): Date => {
+  const expiresAt = new Date();
+
+  expiresAt.setMinutes(expiresAt.getMinutes() + 30);
 
   return expiresAt;
 };
@@ -312,4 +330,141 @@ export const logoutUser = async (
       },
     });
   }
+};
+
+/* ============================================================
+   PASSWORD RESET
+   ============================================================ */
+
+export const forgotPassword = async (
+  data: ForgotPasswordInput
+) => {
+  const user = await prisma.user.findUnique({
+    where: {
+      email: data.email,
+    },
+  });
+
+  // Do not reveal whether an email exists.
+  if (!user) {
+    return;
+  }
+
+  // Invalidate any previous unused reset tokens.
+  await prisma.passwordResetToken.updateMany({
+    where: {
+      userId: user.id,
+      usedAt: null,
+    },
+    data: {
+      usedAt: new Date(),
+    },
+  });
+
+  // Generate secure random token.
+  const rawToken = randomBytes(32).toString("hex");
+
+  // Only store the hash in database.
+  const tokenHash = hashPasswordResetToken(rawToken);
+
+  const expiresAt = getPasswordResetTokenExpiry();
+
+  await prisma.passwordResetToken.create({
+    data: {
+      userId: user.id,
+      tokenHash,
+      expiresAt,
+    },
+  });
+
+  return {
+    token: rawToken,
+    email: user.email,
+  };
+};
+
+export const resetPassword = async (
+  data: ResetPasswordInput
+) => {
+  const tokenHash = hashPasswordResetToken(data.token);
+
+  const resetToken =
+    await prisma.passwordResetToken.findUnique({
+      where: {
+        tokenHash,
+      },
+    });
+
+  if (!resetToken) {
+    throw new Error("Invalid or expired reset token");
+  }
+
+  // Token can only be used once.
+  if (resetToken.usedAt) {
+    throw new Error("Reset token has already been used");
+  }
+
+  // Token expires after 30 minutes.
+  if (resetToken.expiresAt <= new Date()) {
+    throw new Error("Reset token has expired");
+  }
+
+  const user = await prisma.user.findUnique({
+    where: {
+      id: resetToken.userId,
+    },
+  });
+
+  if (!user) {
+    throw new Error("User not found");
+  }
+
+  if (!user.isActive) {
+    throw new Error("User account is inactive");
+  }
+
+  // Hash the new password.
+  const passwordHash = await bcrypt.hash(
+    data.newPassword,
+    SALT_ROUNDS
+  );
+
+  const now = new Date();
+
+  // Password reset + token invalidation + session revocation
+  // happen together.
+  await prisma.$transaction([
+    prisma.user.update({
+      where: {
+        id: user.id,
+      },
+      data: {
+        passwordHash,
+      },
+    }),
+
+    prisma.passwordResetToken.update({
+      where: {
+        id: resetToken.id,
+      },
+      data: {
+        usedAt: now,
+      },
+    }),
+
+    // Revoke all existing refresh sessions.
+    prisma.refreshToken.updateMany({
+      where: {
+        userId: user.id,
+        revokedAt: null,
+      },
+      data: {
+        revokedAt: now,
+      },
+    }),
+  ]);
+
+  return {
+    message: "Password reset successfully",
+  };
 };

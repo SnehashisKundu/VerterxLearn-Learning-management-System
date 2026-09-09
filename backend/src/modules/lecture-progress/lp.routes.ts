@@ -2,6 +2,7 @@ import { Router } from "express";
 
 import {
   create,
+  getCourseProgress,
   get,
   update,
 } from "./lp.controller";
@@ -30,6 +31,13 @@ router.patch(
   authenticate,
   authorize("student"),
   update,
+);
+
+router.get(
+  "/courses/:courseId/progress",
+  authenticate,
+  authorize("student"),
+  getCourseProgress,
 );
 
 export default router;

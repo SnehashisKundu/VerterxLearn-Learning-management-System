@@ -11,6 +11,7 @@ import {
 import {
   createLectureProgress,
   getLectureProgress,
+  getCourseProgress as getCourseProgressService,
   updateLectureProgress,
 } from "./lp.service";
 
@@ -179,6 +180,52 @@ export const update = async (
       "Update lecture progress error:",
       error,
     );
+
+    return res.status(500).json({
+      message: "Internal server error",
+    });
+  }
+};
+
+export const getCourseProgress = async (
+  req: AuthRequest,
+  res: Response,
+) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        message: "Unauthorized",
+      });
+    }
+
+    const courseId = req.params.courseId as string;
+
+    const progress =
+      await getCourseProgressService(
+        courseId,
+        req.user.userId,
+      );
+
+    return res.status(200).json({
+      message: "Course progress fetched successfully",
+      progress,
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Failed to fetch course progress";
+
+    if (
+      message ===
+      "You are not enrolled in this course"
+    ) {
+      return res.status(403).json({
+        message,
+      });
+    }
+
+    console.error(error);
 
     return res.status(500).json({
       message: "Internal server error",

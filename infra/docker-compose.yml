@@ -1,18 +1,18 @@
-services:
+﻿services:
   postgres:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg16
     container_name: lms-ai-postgres
     restart: unless-stopped
     environment:
       POSTGRES_DB: vertexlms_ai
       POSTGRES_USER: verttexlms_sk
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your environment}
+      POSTGRES_PASSWORD: vlms@sk04
     ports:
       - "5434:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U lms_user -d lms_ai"]
+      test: ["CMD-SHELL", "pg_isready -U verttexlms_sk -d vertexlms_ai"]
       interval: 5s
       timeout: 5s
       retries: 5
