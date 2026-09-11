@@ -22,7 +22,7 @@ import idCardRoutes from "./modules/student-id-card/id-card.routes";
 import attendanceRoutes from "./modules/attendance/attnd.routes";
 import crRoutes from "./modules/certificate/cr.routes";
 import certificateTemplateRoutes from "./modules/certificate-template/ct.routes";
-
+import aiTutorRoutes from "./modules/ai-tutor/ai-tutor.routes";
 
 export const app = express();
 
@@ -61,6 +61,7 @@ app.use("/api/student-id-card",idCardRoutes);
 app.use( "/api/attendance",attendanceRoutes);
 app.use("/api/certificates",crRoutes);
 app.use("/api/certificate-templates",certificateTemplateRoutes);
+app.use("/api/ai-tutor", aiTutorRoutes);
 
 app.get("/health", (_req, res) => {
   res.status(200).json({

@@ -1,4 +1,6 @@
 from fastapi import FastAPI
+from app.api.tutor import router as tutor_router
+
 
 app = FastAPI(
     title="Internmo AI Tutor Service",
@@ -12,3 +14,6 @@ def health_check():
         "status": "ok",
         "service": "ai-tutor",
     }
+
+
+app.include_router(tutor_router)

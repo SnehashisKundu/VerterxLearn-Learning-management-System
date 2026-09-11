@@ -32,4 +32,5 @@ export const env = {
   smtpUser: getEnv("SMTP_USER"),
   smtpPass: getEnv("SMTP_PASS"),
   smtpFrom: getEnv("SMTP_FROM"),
+  aiServiceUrl: getEnv("AI_SERVICE_URL"),
 } as const;

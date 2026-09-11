@@ -1,28 +1,25 @@
-from openai import OpenAI
-
-from app.core.config import OPENAI_API_KEY
+from sentence_transformers import SentenceTransformer
 
 
-client = OpenAI(api_key=OPENAI_API_KEY)
+MODEL_NAME = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 
-
-EMBEDDING_MODEL = "text-embedding-3-small"
+model = SentenceTransformer(MODEL_NAME)
 
 
 def generate_embedding(text: str) -> list[float]:
     if not text.strip():
         raise ValueError("Cannot generate embedding for empty text")
 
-    response = client.embeddings.create(
-        model=EMBEDDING_MODEL,
-        input=text,
+    embedding = model.encode(
+        text,
+        normalize_embeddings=True,
     )
 
-    embedding = response.data[0].embedding
+    result = embedding.tolist()
 
-    if len(embedding) != 1536:
+    if len(result) != 384:
         raise RuntimeError(
-            f"Unexpected embedding dimension: {len(embedding)}"
+            f"Unexpected embedding dimension: {len(result)}"
         )
 
-    return embedding
+    return result
