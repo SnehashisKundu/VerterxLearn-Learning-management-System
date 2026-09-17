@@ -23,6 +23,12 @@ import attendanceRoutes from "./modules/attendance/attnd.routes";
 import crRoutes from "./modules/certificate/cr.routes";
 import certificateTemplateRoutes from "./modules/certificate-template/ct.routes";
 import aiTutorRoutes from "./modules/ai-tutor/ai-tutor.routes";
+import flashcardRoutes from "./modules/flashcard/fc.routes";
+import roadmapRoutes from "./modules/roadmap/rd.routes";
+import badgeRoutes from "./modules/badge/badge.routes";
+import pointRuleRoutes from "./modules/point-rule/point-rule.routes";
+import pointWalletRoutes from "./modules/point-wallet/pw.routes";
+import rewardRoutes from "./modules/reward/rw.routes";
 
 export const app = express();
 
@@ -62,6 +68,12 @@ app.use( "/api/attendance",attendanceRoutes);
 app.use("/api/certificates",crRoutes);
 app.use("/api/certificate-templates",certificateTemplateRoutes);
 app.use("/api/ai-tutor", aiTutorRoutes);
+app.use("/api", flashcardRoutes);
+app.use("/api", roadmapRoutes);
+app.use("/api/badges", badgeRoutes);
+app.use("/api/point-rules", pointRuleRoutes);
+app.use("/api/point-wallet", pointWalletRoutes);
+app.use("/api/rewards", rewardRoutes);
 
 app.get("/health", (_req, res) => {
   res.status(200).json({

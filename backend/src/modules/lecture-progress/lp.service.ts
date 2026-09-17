@@ -4,7 +4,9 @@ import type {
   UpdateLectureProgressInput,
 } from "./lp.validation";
 
-const getLectureWithCourse = async (lectureId: string) => {
+const getLectureWithCourse = async (
+  lectureId: string,
+) => {
   const lecture = await prisma.lectures.findUnique({
     where: {
       id: lectureId,
@@ -57,17 +59,79 @@ const getStudentEnrollment = async (
   return enrollment;
 };
 
+/*
+ * Automatically award Module Master badge
+ * when the student completes all lectures
+ * inside a module.
+ */
+const checkAndAwardModuleBadge = async (
+  moduleId: string,
+  userId: string,
+  enrollmentId: string,
+) => {
+  const totalLectures = await prisma.lectures.count({
+    where: {
+      moduleId,
+    },
+  });
+
+  if (totalLectures === 0) {
+    return;
+  }
+
+  const completedLectures =
+    await prisma.lectureProgress.count({
+      where: {
+        enrollmentId,
+        completed: true,
+        lecture: {
+          moduleId,
+        },
+      },
+    });
+
+  if (completedLectures !== totalLectures) {
+    return;
+  }
+
+  const badge = await prisma.badge.findUnique({
+    where: {
+      name: "Module Master",
+    },
+  });
+
+  if (!badge) {
+    return;
+  }
+
+  await prisma.userBadge.upsert({
+    where: {
+      userId_badgeId: {
+        userId,
+        badgeId: badge.id,
+      },
+    },
+    update: {},
+    create: {
+      userId,
+      badgeId: badge.id,
+    },
+  });
+};
+
 export const createLectureProgress = async (
   lectureId: string,
   userId: string,
   data: CreateLectureProgressInput,
 ) => {
-  const lecture = await getLectureWithCourse(lectureId);
+  const lecture =
+    await getLectureWithCourse(lectureId);
 
-  const enrollment = await getStudentEnrollment(
-    userId,
-    lecture.module.course.id,
-  );
+  const enrollment =
+    await getStudentEnrollment(
+      userId,
+      lecture.module.course.id,
+    );
 
   const existingProgress =
     await prisma.lectureProgress.findUnique({
@@ -85,27 +149,45 @@ export const createLectureProgress = async (
     );
   }
 
-  return prisma.lectureProgress.create({
-    data: {
-      enrollmentId: enrollment.id,
-      lectureId,
-      watchedSeconds: data.watchedSeconds,
-      completed: data.completed,
-      lastWatchedAt: new Date(),
-    },
-  });
+  const progress =
+    await prisma.lectureProgress.create({
+      data: {
+        enrollmentId: enrollment.id,
+        lectureId,
+        watchedSeconds: data.watchedSeconds,
+        completed: data.completed,
+        lastWatchedAt: new Date(),
+      },
+    });
+
+  /*
+   * If this lecture was completed,
+   * check whether the entire module
+   * has now been completed.
+   */
+  if (data.completed) {
+    await checkAndAwardModuleBadge(
+      lecture.module.id,
+      userId,
+      enrollment.id,
+    );
+  }
+
+  return progress;
 };
 
 export const getLectureProgress = async (
   lectureId: string,
   userId: string,
 ) => {
-  const lecture = await getLectureWithCourse(lectureId);
+  const lecture =
+    await getLectureWithCourse(lectureId);
 
-  const enrollment = await getStudentEnrollment(
-    userId,
-    lecture.module.course.id,
-  );
+  const enrollment =
+    await getStudentEnrollment(
+      userId,
+      lecture.module.course.id,
+    );
 
   const progress =
     await prisma.lectureProgress.findUnique({
@@ -127,7 +209,9 @@ export const getLectureProgress = async (
     });
 
   if (!progress) {
-    throw new Error("Lecture progress not found");
+    throw new Error(
+      "Lecture progress not found",
+    );
   }
 
   return progress;
@@ -138,12 +222,14 @@ export const updateLectureProgress = async (
   userId: string,
   data: UpdateLectureProgressInput,
 ) => {
-  const lecture = await getLectureWithCourse(lectureId);
+  const lecture =
+    await getLectureWithCourse(lectureId);
 
-  const enrollment = await getStudentEnrollment(
-    userId,
-    lecture.module.course.id,
-  );
+  const enrollment =
+    await getStudentEnrollment(
+      userId,
+      lecture.module.course.id,
+    );
 
   const progress =
     await prisma.lectureProgress.findUnique({
@@ -156,37 +242,56 @@ export const updateLectureProgress = async (
     });
 
   if (!progress) {
-    throw new Error("Lecture progress not found");
+    throw new Error(
+      "Lecture progress not found",
+    );
   }
 
-  return prisma.lectureProgress.update({
-    where: {
-      id: progress.id,
-    },
-    data: {
-      ...(data.watchedSeconds !== undefined && {
-        watchedSeconds: data.watchedSeconds,
-      }),
-      ...(data.completed !== undefined && {
-        completed: data.completed,
-      }),
-      lastWatchedAt: new Date(),
-    },
-  });
+  const updatedProgress =
+    await prisma.lectureProgress.update({
+      where: {
+        id: progress.id,
+      },
+      data: {
+        ...(data.watchedSeconds !== undefined && {
+          watchedSeconds: data.watchedSeconds,
+        }),
+        ...(data.completed !== undefined && {
+          completed: data.completed,
+        }),
+        lastWatchedAt: new Date(),
+      },
+    });
+
+  /*
+   * If the lecture has just been completed,
+   * check whether the entire module
+   * has now been completed.
+   */
+  if (data.completed === true) {
+    await checkAndAwardModuleBadge(
+      lecture.module.id,
+      userId,
+      enrollment.id,
+    );
+  }
+
+  return updatedProgress;
 };
 
 export const getCourseProgress = async (
   courseId: string,
   userId: string,
 ) => {
-  const enrollment = await prisma.enrollment.findUnique({
-    where: {
-      userId_courseId: {
-        userId,
-        courseId,
+  const enrollment =
+    await prisma.enrollment.findUnique({
+      where: {
+        userId_courseId: {
+          userId,
+          courseId,
+        },
       },
-    },
-  });
+    });
 
   if (!enrollment) {
     throw new Error(
@@ -194,13 +299,14 @@ export const getCourseProgress = async (
     );
   }
 
-  const totalLectures = await prisma.lectures.count({
-    where: {
-      module: {
-        courseId,
+  const totalLectures =
+    await prisma.lectures.count({
+      where: {
+        module: {
+          courseId,
+        },
       },
-    },
-  });
+    });
 
   const completedLectures =
     await prisma.lectureProgress.count({

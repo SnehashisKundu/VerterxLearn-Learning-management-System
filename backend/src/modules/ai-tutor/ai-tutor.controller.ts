@@ -6,11 +6,13 @@ import type { AuthRequest } from "../../middlewares/auth.middleware";
 import {
   askTutor,
   generateTutorQuiz,
+  generateTutorSummary,
 } from "./ai-tutor.service";
 
 import {
   tutorAskSchema,
   tutorQuizSchema,
+  tutorSummarySchema,
 } from "./ai-tutor.validation";
 
 export const ask = async (
@@ -73,6 +75,41 @@ export const quiz = async (
     }
 
     console.error("AI tutor quiz error:", error);
+
+    return res.status(503).json({
+      message:
+        error instanceof Error
+          ? error.message
+          : "AI tutor service unavailable",
+    });
+  }
+};
+
+export const summary = async (
+  req: AuthRequest,
+  res: Response,
+) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        message: "Unauthorized",
+      });
+    }
+
+    const data = tutorSummarySchema.parse(req.body);
+
+    const result = await generateTutorSummary(data);
+
+    return res.status(200).json(result);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return res.status(400).json({
+        message: "Validation failed",
+        errors: error.issues,
+      });
+    }
+
+    console.error("AI tutor summary error:", error);
 
     return res.status(503).json({
       message:

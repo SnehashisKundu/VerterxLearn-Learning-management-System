@@ -44,6 +44,9 @@ model User {
   topicMasteries          TopicMastery[]
   userBadges              UserBadge[]
   userRoles               UserRole[]
+  pointWallet             PointWallet?
+  pointTransactions       PointTransaction[]
+  redemptions             RewardRedemption[]
 
   @@map("users")
 }
@@ -365,6 +368,92 @@ model UserBadge {
   @@id([userId, badgeId])
   @@index([badgeId])
   @@map("user_badges")
+}
+
+model PointRule {
+  id          String   @id @default(uuid()) @db.Uuid
+  key         String   @unique @db.VarChar(100)
+  name        String   @db.VarChar(150)
+  points      Int
+  description String?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("point_rules")
+}
+
+model PointWallet {
+  userId    String   @id @map("user_id") @db.Uuid
+  balance   Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("point_wallets")
+}
+
+model PointTransaction {
+  id          String               @id @default(uuid()) @db.Uuid
+  userId      String               @map("user_id") @db.Uuid
+  amount      Int
+  type        PointTransactionType
+  reason      String               @db.VarChar(255)
+  referenceId String?              @map("reference_id") @db.Uuid
+  createdAt   DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("point_transactions")
+}
+
+enum PointTransactionType {
+  EARN
+  REDEEM
+  ADJUSTMENT
+}
+
+model Reward {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @db.VarChar(150)
+  description String?
+  imageUrl    String?  @map("image_url")
+  points      Int
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  redemptions RewardRedemption[]
+
+  @@index([points])
+  @@index([isActive])
+  @@map("rewards")
+}
+
+model RewardRedemption {
+  id        String                 @id @default(uuid()) @db.Uuid
+  userId    String                 @map("user_id") @db.Uuid
+  rewardId  String                 @map("reward_id") @db.Uuid
+  points    Int
+  status    RewardRedemptionStatus @default(PENDING)
+  createdAt DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reward Reward @relation(fields: [rewardId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([rewardId])
+  @@map("reward_redemptions")
+}
+
+enum RewardRedemptionStatus {
+  PENDING
+  APPROVED
+  FULFILLED
+  CANCELLED
 }
 
 model Streak {

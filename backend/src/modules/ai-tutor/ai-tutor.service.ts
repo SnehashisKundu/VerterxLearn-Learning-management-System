@@ -13,6 +13,11 @@ type TutorQuizInput = {
   language: string;
 };
 
+type TutorSummaryInput = {
+  lecture_id: string;
+  watched_seconds: number;
+};
+
 const callAIService = async (
   endpoint: string,
   body: unknown,
@@ -49,4 +54,10 @@ export const generateTutorQuiz = async (
   data: TutorQuizInput,
 ) => {
   return callAIService("quiz", data);
+};
+
+export const generateTutorSummary = async (
+  data: TutorSummaryInput,
+) => {
+  return callAIService("summary", data);
 };

@@ -31,5 +31,15 @@ export const tutorQuizSchema = z.object({
   ]).default("English"),
 });
 
+export const tutorSummarySchema = z.object({
+  lecture_id: z.string().trim().min(1, "Lecture ID is required"),
+  watched_seconds: z
+    .number()
+    .int()
+    .min(0, "watched_seconds cannot be negative"),
+});
+
 export type TutorAskInput = z.infer<typeof tutorAskSchema>;
 export type TutorQuizInput = z.infer<typeof tutorQuizSchema>;
+export type TutorSummaryInput =
+  z.infer<typeof tutorSummarySchema>;

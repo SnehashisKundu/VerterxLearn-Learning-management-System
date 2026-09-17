@@ -6,6 +6,8 @@ from app.schemas.tutor import (
     TutorQuizRequest,
     TutorQuizResponse,
     QuizQuestion,
+    TutorSummaryRequest,
+    TutorSummaryResponse,
 )
 
 from app.services.tutor_service import ask_tutor
@@ -14,7 +16,7 @@ from app.services.gemini_service import (
     GeminiRateLimitError,
     GeminiAPIError,
 )
-
+from app.services.summary_service import generate_lecture_summary
 
 router = APIRouter(
     prefix="/api/tutor",
@@ -82,6 +84,43 @@ def generate_quiz(request: TutorQuizRequest):
                 for question in result.get("questions", [])
             ]
         )
+
+    except GeminiRateLimitError as exc:
+        raise HTTPException(
+            status_code=429,
+            detail=str(exc),
+        ) from exc
+
+    except GeminiAPIError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=str(exc),
+        ) from exc
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+        
+        
+@router.post(
+    "/summary",
+    response_model=TutorSummaryResponse,
+    responses={
+        400: {"description": "Invalid tutor summary request"},
+        429: {"description": "Gemini API rate limit exceeded"},
+        503: {"description": "Gemini API unavailable"},
+    },
+)
+def lecture_summary(request: TutorSummaryRequest):
+    try:
+        result = generate_lecture_summary(
+            lecture_id=request.lecture_id,
+            watched_seconds=request.watched_seconds,
+        )
+
+        return TutorSummaryResponse(**result)
 
     except GeminiRateLimitError as exc:
         raise HTTPException(

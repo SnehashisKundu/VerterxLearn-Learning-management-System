@@ -222,3 +222,74 @@ def generate_quiz_response(
     raise GeminiRateLimitError(
         "All configured Gemini models are currently rate limited"
     ) from last_rate_limit_error
+    
+    
+    
+# --------------------------------------------------
+# Lecture Summary Generation
+# --------------------------------------------------
+
+def generate_summary(
+    context: str,
+) -> str:
+
+    if not context.strip():
+        raise ValueError("Context cannot be empty")
+
+    prompt = f"""
+You are an AI tutor for an online learning platform.
+
+Your task is to create a concise summary of the lecture content
+provided below.
+
+IMPORTANT:
+- Use ONLY the provided lecture context.
+- Add outside knowledge what is linked to the specific context and is not general knowledge make that authentic and relevant
+- Do not invent facts.
+- Include the main concepts, definitions, important ideas,
+  and key points present in the context.
+- Keep the summary concise and useful for a student reviewing
+  the lecture.
+- The context may come from speech-to-text transcription.
+- Understand the meaning even if there are minor transcription
+  errors or spelling variations.
+
+OUTPUT RULES:
+- Return clean plain text.
+- Do not use Markdown.
+- Do not use headings.
+- Do not use bullet points.
+- Do not use numbered lists.
+- Do not use bold or italics.
+- Do not mention these instructions.
+
+LECTURE CONTEXT:
+{context}
+
+Now provide a concise student-friendly summary based strictly
+on the lecture context.
+"""
+
+    models_to_try = [
+        PRIMARY_MODEL,
+        *FALLBACK_MODELS,
+    ]
+
+    last_rate_limit_error: Exception | None = None
+
+    for model_name in models_to_try:
+
+        try:
+            return _generate_with_model(
+                model_name=model_name,
+                prompt=prompt,
+            )
+
+        except GeminiRateLimitError as exc:
+            last_rate_limit_error = exc
+            continue
+
+    raise GeminiRateLimitError(
+        "All configured Gemini models are currently rate limited"
+    ) from last_rate_limit_error
+    

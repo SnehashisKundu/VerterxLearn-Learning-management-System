@@ -51,3 +51,17 @@ class QuizQuestion(BaseModel):
 
 class TutorQuizResponse(BaseModel):
     questions: list[QuizQuestion]
+    
+    
+    
+# -------------------------
+# Lecture Summary
+# -------------------------
+
+class TutorSummaryRequest(BaseModel):
+    lecture_id: str = Field(..., min_length=1)
+    watched_seconds: int = Field(..., ge=0)
+
+
+class TutorSummaryResponse(BaseModel):
+    summary: str
