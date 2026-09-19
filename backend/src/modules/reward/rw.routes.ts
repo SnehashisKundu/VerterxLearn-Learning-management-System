@@ -9,6 +9,8 @@ import {
   remove,
   redeem,
   myRedemptions,
+  adminRedemptions,
+  updateRedemption,
 } from "./rw.controller";
 
 import { authenticate } from "../../middlewares/auth.middleware";
@@ -17,10 +19,10 @@ import { authorize } from "../../middlewares/role.middleware";
 const router = Router();
 
 /*
- * Student
+ * STUDENT
  */
 
-// Active rewards - sorted by points low to high
+// Active rewards
 router.get(
   "/",
   authenticate,
@@ -28,7 +30,7 @@ router.get(
   getActive,
 );
 
-// Student's own redemption history
+// My redemption history
 router.get(
   "/me/redemptions",
   authenticate,
@@ -36,7 +38,7 @@ router.get(
   myRedemptions,
 );
 
-// Redeem a reward
+// Redeem reward
 router.post(
   "/:rewardId/redeem",
   authenticate,
@@ -45,8 +47,24 @@ router.post(
 );
 
 /*
- * Admin
+ * ADMIN
  */
+
+// All redemption requests
+router.get(
+  "/admin/redemptions",
+  authenticate,
+  authorize("admin"),
+  adminRedemptions,
+);
+
+// Update redemption status
+router.patch(
+  "/admin/redemptions/:redemptionId/status",
+  authenticate,
+  authorize("admin"),
+  updateRedemption,
+);
 
 // All rewards including inactive
 router.get(

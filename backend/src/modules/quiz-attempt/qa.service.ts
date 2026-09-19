@@ -1,4 +1,5 @@
 import { prisma } from "../../lib/prisma";
+import { recordActivity } from "../streak/str.service";
 
 async function getQuizWithAccess(quizId: string) {
   const quiz = await prisma.quiz.findUnique({
@@ -247,7 +248,7 @@ export async function submitAttempt(
     throw new Error("Invalid quiz score");
   }
 
-  return prisma.quizAttempt.update({
+  const updatedAttempt = await prisma.quizAttempt.update({
     where: {
       id: attemptId,
     },
@@ -264,4 +265,9 @@ export async function submitAttempt(
       submittedAt: true,
     },
   });
+
+  // Successful quiz submission counts as learning activity.
+  await recordActivity(userId);
+
+  return updatedAttempt;
 }

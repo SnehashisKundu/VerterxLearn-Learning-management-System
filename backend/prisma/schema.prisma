@@ -421,6 +421,7 @@ model Reward {
   name        String   @db.VarChar(150)
   description String?
   imageUrl    String?  @map("image_url")
+  type        RewardType @default(DIGITAL)
   points      Int
   isActive    Boolean  @default(true) @map("is_active")
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -434,24 +435,45 @@ model Reward {
 }
 
 model RewardRedemption {
-  id        String                 @id @default(uuid()) @db.Uuid
-  userId    String                 @map("user_id") @db.Uuid
-  rewardId  String                 @map("reward_id") @db.Uuid
-  points    Int
-  status    RewardRedemptionStatus @default(PENDING)
-  createdAt DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  id             String                 @id @default(uuid()) @db.Uuid
+  userId         String                 @map("user_id") @db.Uuid
+  rewardId       String                 @map("reward_id") @db.Uuid
+  points         Int
+  status         RewardRedemptionStatus @default(PENDING)
+
+  trackingNumber String?                @map("tracking_number") @db.VarChar(100)
+  carrier        String?                @db.VarChar(100)
+
+  shippedAt      DateTime?              @map("shipped_at") @db.Timestamptz(6)
+  deliveredAt    DateTime?              @map("delivered_at") @db.Timestamptz(6)
+  claimedAt      DateTime?              @map("claimed_at") @db.Timestamptz(6)
+  fulfilledAt    DateTime?              @map("fulfilled_at") @db.Timestamptz(6)
+
+  createdAt      DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
 
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   reward Reward @relation(fields: [rewardId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([rewardId])
+  @@index([status])
   @@map("reward_redemptions")
 }
+
+enum RewardType {
+  DIGITAL
+  PHYSICAL
+}
+
 
 enum RewardRedemptionStatus {
   PENDING
   APPROVED
+  PROCESSING
+  SHIPPED
+  IN_TRANSIT
+  DELIVERED
+  CLAIMED
   FULFILLED
   CANCELLED
 }
@@ -537,6 +559,7 @@ model DocumentChunk {
   @@index([courseId])
   @@index([lectureId])
   @@index([lectureId, startSeconds, endSeconds])
+  @@unique([lectureId, chunkIndex], map: "document_chunks_lecture_chunk_unique")
   @@map("document_chunks")
 }
 

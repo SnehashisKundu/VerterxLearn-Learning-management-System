@@ -1,4 +1,5 @@
 import { prisma } from "../../lib/prisma";
+import { recordActivity } from "../streak/str.service";
 
 import type {
   CreateAssignmentInput,
@@ -127,22 +128,28 @@ export async function submitAssignment(
     );
   }
 
-  return prisma.assignmentSubmission.create({
-    data: {
-      assignmentId,
-      userId,
-      fileUrl: data.fileUrl,
-    },
-    select: {
-      id: true,
-      assignmentId: true,
-      userId: true,
-      fileUrl: true,
-      submittedAt: true,
-      grade: true,
-      feedback: true,
-    },
-  });
+  const submission =
+    await prisma.assignmentSubmission.create({
+      data: {
+        assignmentId,
+        userId,
+        fileUrl: data.fileUrl,
+      },
+      select: {
+        id: true,
+        assignmentId: true,
+        userId: true,
+        fileUrl: true,
+        submittedAt: true,
+        grade: true,
+        feedback: true,
+      },
+    });
+
+  // Successful assignment submission counts as learning activity.
+  await recordActivity(userId);
+
+  return submission;
 }
 
 export async function getAssignment(

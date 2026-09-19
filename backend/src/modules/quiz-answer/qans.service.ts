@@ -1,5 +1,6 @@
 import { prisma } from "../../lib/prisma";
 import type { CreateAnswerInput } from "./qans.validation";
+import { recordActivity } from "../streak/str.service";
 
 async function getAttempt(attemptId: string) {
   const attempt = await prisma.quizAttempt.findUnique({
@@ -310,6 +311,9 @@ export async function submitAttempt(
         submittedAt: true,
       },
     });
+
+  // Successful quiz submission counts as learning activity
+  await recordActivity(userId);
 
   return {
     ...submittedAttempt,

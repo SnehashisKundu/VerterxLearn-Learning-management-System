@@ -29,6 +29,8 @@ import badgeRoutes from "./modules/badge/badge.routes";
 import pointRuleRoutes from "./modules/point-rule/point-rule.routes";
 import pointWalletRoutes from "./modules/point-wallet/pw.routes";
 import rewardRoutes from "./modules/reward/rw.routes";
+import streakRoutes from "./modules/streak/str.routes";
+import analyticsRoutes from "./modules/analytics/an.routes";
 
 export const app = express();
 
@@ -74,6 +76,8 @@ app.use("/api/badges", badgeRoutes);
 app.use("/api/point-rules", pointRuleRoutes);
 app.use("/api/point-wallet", pointWalletRoutes);
 app.use("/api/rewards", rewardRoutes);
+app.use("/api/streak", streakRoutes);
+app.use("/api/analytics", analyticsRoutes);
 
 app.get("/health", (_req, res) => {
   res.status(200).json({

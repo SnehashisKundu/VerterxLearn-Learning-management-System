@@ -4,6 +4,8 @@ import type {
   UpdateLectureProgressInput,
 } from "./lp.validation";
 
+import { recordActivity } from "../streak/str.service";
+
 const getLectureWithCourse = async (
   lectureId: string,
 ) => {
@@ -162,10 +164,13 @@ export const createLectureProgress = async (
 
   /*
    * If this lecture was completed,
-   * check whether the entire module
+   * record learning activity for streak
+   * and check whether the entire module
    * has now been completed.
    */
   if (data.completed) {
+    await recordActivity(userId);
+
     await checkAndAwardModuleBadge(
       lecture.module.id,
       userId,
@@ -264,11 +269,19 @@ export const updateLectureProgress = async (
     });
 
   /*
-   * If the lecture has just been completed,
-   * check whether the entire module
-   * has now been completed.
+   * Only record streak activity when the lecture
+   * changes from incomplete -> completed.
+   *
+   * This prevents repeated updates to an already
+   * completed lecture from being treated as
+   * new learning activity.
    */
-  if (data.completed === true) {
+  if (
+    data.completed === true &&
+    !progress.completed
+  ) {
+    await recordActivity(userId);
+
     await checkAndAwardModuleBadge(
       lecture.module.id,
       userId,

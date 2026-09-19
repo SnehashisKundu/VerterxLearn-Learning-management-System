@@ -5,6 +5,9 @@ import {
   createRewardSchema,
   updateRewardSchema,
   rewardIdSchema,
+  redemptionIdSchema,
+  updateRedemptionStatusSchema,
+  redemptionListQuerySchema,
 } from "./rw.validation";
 
 import {
@@ -16,6 +19,8 @@ import {
   deleteReward,
   redeemReward,
   getMyRedemptions,
+  getAllRedemptions,
+  updateRedemptionStatus,
 } from "./rw.service";
 
 export const create = async (
@@ -27,17 +32,24 @@ export const create = async (
   if (!parsed.success) {
     return res.status(400).json({
       success: false,
-      message: parsed.error.issues[0]?.message ?? "Invalid request",
+      message:
+        parsed.error.issues[0]?.message ?? "Invalid request",
     });
   }
 
-  const { name, points, description, imageUrl, isActive } = parsed.data;
   const reward = await createReward({
-    name,
-    points,
-    ...(description !== undefined ? { description } : {}),
-    ...(imageUrl !== undefined ? { imageUrl } : {}),
-    ...(isActive !== undefined ? { isActive } : {}),
+    name: parsed.data.name,
+    points: parsed.data.points,
+    type: parsed.data.type,
+    ...(parsed.data.description === undefined
+      ? {}
+      : { description: parsed.data.description }),
+    ...(parsed.data.imageUrl === undefined
+      ? {}
+      : { imageUrl: parsed.data.imageUrl }),
+    ...(parsed.data.isActive === undefined
+      ? {}
+      : { isActive: parsed.data.isActive }),
   });
 
   return res.status(201).json({
@@ -86,7 +98,9 @@ export const getById = async (
     });
   }
 
-  const reward = await getRewardById(parsed.data.rewardId);
+  const reward = await getRewardById(
+    parsed.data.rewardId,
+  );
 
   if (!reward) {
     return res.status(404).json({
@@ -106,7 +120,9 @@ export const update = async (
   req: AuthRequest,
   res: Response,
 ) => {
-  const parsedParams = rewardIdSchema.safeParse(req.params);
+  const parsedParams = rewardIdSchema.safeParse(
+    req.params,
+  );
 
   if (!parsedParams.success) {
     return res.status(400).json({
@@ -120,30 +136,41 @@ export const update = async (
   if (!parsed.success) {
     return res.status(400).json({
       success: false,
-      message: parsed.error.issues[0]?.message ?? "Invalid request",
+      message:
+        parsed.error.issues[0]?.message ?? "Invalid request",
     });
   }
 
   try {
+    const updateData = {
+      ...(parsed.data.name !== undefined && {
+        name: parsed.data.name,
+      }),
+
+      ...(parsed.data.description !== undefined && {
+        description: parsed.data.description,
+      }),
+
+      ...(parsed.data.imageUrl !== undefined && {
+        imageUrl: parsed.data.imageUrl,
+      }),
+
+      ...(parsed.data.type !== undefined && {
+        type: parsed.data.type,
+      }),
+
+      ...(parsed.data.points !== undefined && {
+        points: parsed.data.points,
+      }),
+
+      ...(parsed.data.isActive !== undefined && {
+        isActive: parsed.data.isActive,
+      }),
+    };
+
     const reward = await updateReward(
       parsedParams.data.rewardId,
-      {
-        ...(parsed.data.name !== undefined
-          ? { name: parsed.data.name }
-          : {}),
-        ...(parsed.data.points !== undefined
-          ? { points: parsed.data.points }
-          : {}),
-        ...(parsed.data.description !== undefined
-          ? { description: parsed.data.description }
-          : {}),
-        ...(parsed.data.imageUrl !== undefined
-          ? { imageUrl: parsed.data.imageUrl }
-          : {}),
-        ...(parsed.data.isActive !== undefined
-          ? { isActive: parsed.data.isActive }
-          : {}),
-      },
+      updateData,
     );
 
     return res.status(200).json({
@@ -262,4 +289,108 @@ export const myRedemptions = async (
     message: "Reward redemptions fetched successfully",
     data: redemptions,
   });
+};
+
+/*
+ * ADMIN REDEMPTION MANAGEMENT
+ */
+
+export const adminRedemptions = async (
+  req: AuthRequest,
+  res: Response,
+) => {
+  const parsed = redemptionListQuerySchema.safeParse(
+    req.query,
+  );
+
+  if (!parsed.success) {
+    return res.status(400).json({
+      success: false,
+      message:
+        parsed.error.issues[0]?.message ?? "Invalid query",
+    });
+  }
+
+  const result = await getAllRedemptions(
+    parsed.data.status,
+    parsed.data.page,
+    parsed.data.limit,
+  );
+
+  return res.status(200).json({
+    success: true,
+    message: "All reward redemptions fetched successfully",
+    data: result,
+  });
+};
+
+export const updateRedemption = async (
+  req: AuthRequest,
+  res: Response,
+) => {
+  const parsedParams = redemptionIdSchema.safeParse(
+    req.params,
+  );
+
+  if (!parsedParams.success) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid redemption ID",
+    });
+  }
+
+  const parsedBody =
+    updateRedemptionStatusSchema.safeParse(req.body);
+
+  if (!parsedBody.success) {
+    return res.status(400).json({
+      success: false,
+      message:
+        parsedBody.error.issues[0]?.message ??
+        "Invalid request",
+    });
+  }
+
+  try {
+    const result = await updateRedemptionStatus(
+      parsedParams.data.redemptionId,
+      parsedBody.data.status,
+      {
+        ...(parsedBody.data.trackingNumber !== undefined
+          ? { trackingNumber: parsedBody.data.trackingNumber }
+          : {}),
+        ...(parsedBody.data.carrier !== undefined
+          ? { carrier: parsedBody.data.carrier }
+          : {}),
+      },
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Redemption status updated successfully",
+      data: result,
+    });
+  } catch (error) {
+    if (error instanceof Error) {
+      const knownErrors = [
+        "Redemption not found",
+        "Invalid redemption status transition",
+        "Only physical rewards can be shipped",
+        "Tracking number and carrier are required when shipping a physical reward",
+      ];
+
+      if (knownErrors.includes(error.message)) {
+        return res.status(
+          error.message === "Redemption not found"
+            ? 404
+            : 400,
+        ).json({
+          success: false,
+          message: error.message,
+        });
+      }
+    }
+
+    throw error;
+  }
 };
