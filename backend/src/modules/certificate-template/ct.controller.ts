@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+
 import {
   activateCertificateTemplate,
   createCertificateTemplate,
@@ -8,24 +9,31 @@ import {
 
 export async function create(
   req: Request,
-  res: Response
+  res: Response,
 ) {
-  const { name, templateUrl } = req.body;
-
-  const template = await createCertificateTemplate(
+  const {
     name,
-    templateUrl
-  );
+    templateUrl,
+    layout,
+  } = req.body;
+
+  const template =
+    await createCertificateTemplate(
+      name,
+      templateUrl,
+      layout,
+    );
 
   res.status(201).json({
-    message: "Certificate template created successfully",
+    message:
+      "Certificate template created successfully",
     template,
   });
 }
 
 export async function getAll(
   _req: Request,
-  res: Response
+  res: Response,
 ) {
   const templates =
     await getCertificateTemplates();
@@ -39,19 +47,26 @@ export async function getAll(
 
 export async function activate(
   req: Request,
-  res: Response
+  res: Response,
 ) {
-  const { templateId } = req.params;
+  const { templateId } =
+    req.params;
 
-  if (typeof templateId !== "string") {
+  if (
+    typeof templateId !== "string"
+  ) {
     res.status(400).json({
-      message: "A valid template ID is required",
+      message:
+        "A valid template ID is required",
     });
+
     return;
   }
 
   const template =
-    await activateCertificateTemplate(templateId);
+    await activateCertificateTemplate(
+      templateId,
+    );
 
   res.status(200).json({
     message:
@@ -62,7 +77,7 @@ export async function activate(
 
 export async function getActive(
   _req: Request,
-  res: Response
+  res: Response,
 ) {
   const template =
     await getActiveCertificateTemplate();

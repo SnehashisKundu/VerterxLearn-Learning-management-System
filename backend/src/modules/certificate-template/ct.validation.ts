@@ -1,5 +1,18 @@
 import { z } from "zod";
 
+const layoutPositionSchema = z.object({
+  x: z.number().min(0).max(1),
+  y: z.number().min(0).max(1),
+  width: z.number().min(0.05).max(1),
+});
+
+export const certificateLayoutSchema = z.object({
+  studentName: layoutPositionSchema,
+  courseTitle: layoutPositionSchema,
+  issuedDate: layoutPositionSchema,
+  certificateId: layoutPositionSchema,
+});
+
 export const createCertificateTemplateSchema = z.object({
   name: z
     .string()
@@ -9,6 +22,8 @@ export const createCertificateTemplateSchema = z.object({
   templateUrl: z
     .string()
     .url("Invalid template URL"),
+
+  layout: certificateLayoutSchema.optional(),
 });
 
 export const certificateTemplateIdParamSchema = z.object({
@@ -16,6 +31,10 @@ export const certificateTemplateIdParamSchema = z.object({
     .string()
     .uuid("Invalid template ID"),
 });
+
+export type CertificateLayout = z.infer<
+  typeof certificateLayoutSchema
+>;
 
 export type CreateCertificateTemplateInput =
   z.infer<typeof createCertificateTemplateSchema>;

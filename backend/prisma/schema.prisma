@@ -337,12 +337,14 @@ model Certificate {
 }
 
 model CertificateTemplate {
-  id           String        @id @default(uuid()) @db.Uuid
-  name         String        @db.VarChar(150)
-  templateUrl  String        @map("template_url")
-  isActive     Boolean       @default(false) @map("is_active")
-  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id           String   @id @default(uuid()) @db.Uuid
+  name         String   @db.VarChar(150)
+  templateUrl  String   @map("template_url")
+  layout       Json?
+  isActive     Boolean  @default(false) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
   certificates Certificate[]
 
   @@index([isActive])

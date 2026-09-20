@@ -4,55 +4,113 @@ import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 
+/**
+ * ============================================================
+ * TYPES
+ * ============================================================
+ */
+
+export interface CertificateLayoutPosition {
+  x: number;
+  y: number;
+  width: number;
+}
+
+export interface CertificateLayout {
+  studentName: CertificateLayoutPosition;
+  courseTitle: CertificateLayoutPosition;
+  issuedDate: CertificateLayoutPosition;
+  certificateId: CertificateLayoutPosition;
+}
+
 interface CertificatePdfData {
   studentName: string;
   courseTitle: string;
   certificateId: string;
   issuedAt: Date;
 
-  // Optional:
-  // If provided, selected custom template is used.
-  // If not provided, default local template is used.
+  /**
+   * Custom template selected by admin.
+   */
   templateUrl?: string | null;
+
+  /**
+   * Layout belonging to selected template.
+   */
+  layout?: CertificateLayout | null;
 }
 
 /**
- * Default certificate template.
+ * ============================================================
+ * DEFAULT LAYOUT
+ * ============================================================
  *
- * Project structure:
+ * Used ONLY when admin has not supplied a custom layout.
  *
- * src/
- * └── modules/
- *     ├── certificate/
- *     │   └── certificate.pdf.ts
- *     └── certificate-template/
- *         └── assets/
- *             └── certificatepdf.png
+ * Coordinates are normalized:
+ *
+ * x = 0 → left
+ * x = 1 → right
+ *
+ * y = 0 → top
+ * y = 1 → bottom
+ *
+ * width = percentage of page width
+ */
+export const DEFAULT_CERTIFICATE_LAYOUT: CertificateLayout = {
+  studentName: {
+    x: 0.25,
+    y: 0.395,
+    width: 0.50,
+  },
+
+  courseTitle: {
+    x: 0.27,
+    y: 0.535,
+    width: 0.46,
+  },
+
+  issuedDate: {
+    x: 0.245,
+    y: 0.785,
+    width: 0.18,
+  },
+
+  certificateId: {
+    x: 0.475,
+    y: 0.785,
+    width: 0.27,
+  },
+};
+
+/**
+ * ============================================================
+ * DEFAULT TEMPLATE
+ * ============================================================
  */
 const getDefaultTemplatePath = (): string => {
   const possiblePaths = [
-    // Development / source structure
     path.resolve(
       __dirname,
       "../certificate-template/assets/certiifcatepdf.png",
     ),
 
-    // Running from project root with ts-node/tsx
     path.resolve(
       process.cwd(),
       "src/modules/certificate-template/assets/certiifcatepdf.png",
     ),
 
-    // Production / compiled structure
     path.resolve(
       process.cwd(),
       "dist/modules/certificate-template/assets/certiifcatepdf.png",
     ),
   ];
 
-  const existingPath = possiblePaths.find((filePath) =>
-    fs.existsSync(filePath),
-  );
+  const existingPath =
+    possiblePaths.find(
+      (filePath) =>
+        fs.existsSync(filePath),
+    );
 
   if (!existingPath) {
     throw new Error(
@@ -64,289 +122,442 @@ const getDefaultTemplatePath = (): string => {
 };
 
 /**
- * Download an image template from a URL.
+ * ============================================================
+ * DOWNLOAD TEMPLATE
+ * ============================================================
  */
 const downloadImage = (
   url: string,
 ): Promise<Buffer> => {
-  return new Promise((resolve, reject) => {
-    const client = url.startsWith("https")
-      ? https
-      : http;
+  return new Promise(
+    (resolve, reject) => {
+      const client =
+        url.startsWith("https")
+          ? https
+          : http;
 
-    const request = client.get(
-      url,
-      (response) => {
-        // Follow redirects
-        if (
-          response.statusCode &&
-          response.statusCode >= 300 &&
-          response.statusCode < 400 &&
-          response.headers.location
-        ) {
-          downloadImage(
-            response.headers.location,
-          )
-            .then(resolve)
-            .catch(reject);
+      const request = client.get(
+        url,
+        (response) => {
+          /**
+           * Redirect.
+           */
+          if (
+            response.statusCode &&
+            response.statusCode >= 300 &&
+            response.statusCode < 400 &&
+            response.headers.location
+          ) {
+            downloadImage(
+              response.headers.location,
+            )
+              .then(resolve)
+              .catch(reject);
 
-          return;
-        }
+            return;
+          }
 
-        if (response.statusCode !== 200) {
-          reject(
-            new Error(
-              `Failed to download certificate template. Status: ${response.statusCode}`,
-            ),
-          );
-
-          return;
-        }
-
-        const chunks: Buffer[] = [];
-
-        response.on("data", (chunk) => {
-          chunks.push(Buffer.from(chunk));
-        });
-
-        response.on("end", () => {
-          const buffer = Buffer.concat(chunks);
-
-          if (buffer.length === 0) {
+          /**
+           * Failed request.
+           */
+          if (
+            response.statusCode !== 200
+          ) {
             reject(
               new Error(
-                "Certificate template downloaded as empty file",
+                `Failed to download certificate template. Status: ${response.statusCode}`,
               ),
             );
 
             return;
           }
 
-          resolve(buffer);
-        });
+          const chunks: Buffer[] = [];
 
-        response.on("error", reject);
-      },
-    );
+          response.on(
+            "data",
+            (chunk) => {
+              chunks.push(
+                Buffer.from(chunk),
+              );
+            },
+          );
 
-    request.on("error", reject);
-  });
+          response.on(
+            "end",
+            () => {
+              const buffer =
+                Buffer.concat(
+                  chunks,
+                );
+
+              if (
+                buffer.length === 0
+              ) {
+                reject(
+                  new Error(
+                    "Certificate template downloaded as empty file",
+                  ),
+                );
+
+                return;
+              }
+
+              resolve(buffer);
+            },
+          );
+
+          response.on(
+            "error",
+            reject,
+          );
+        },
+      );
+
+      request.on(
+        "error",
+        reject,
+      );
+    },
+  );
 };
 
 /**
- * Generate certificate PDF.
- *
- * Template selection:
- *
- * 1. templateUrl provided
- *    → use selected custom template
- *
- * 2. templateUrl missing/null
- *    → use default local certificate template
+ * ============================================================
+ * SAFE NORMALIZATION
+ * ============================================================
+ */
+const normalizeLayout = (
+  layout:
+    | CertificateLayout
+    | null
+    | undefined,
+): CertificateLayout => {
+  if (!layout) {
+    return DEFAULT_CERTIFICATE_LAYOUT;
+  }
+
+  return layout;
+};
+
+/**
+ * ============================================================
+ * FONT SIZES
+ * ============================================================
+ */
+
+const getStudentNameFontSize = (
+  name: string,
+): number => {
+  const length =
+    name.trim().length;
+
+  if (length <= 20) return 22;
+  if (length <= 28) return 20;
+  if (length <= 36) return 18;
+  if (length <= 45) return 16;
+
+  return 15;
+};
+
+const getCourseFontSize = (
+  title: string,
+): number => {
+  const length =
+    title.trim().length;
+
+  if (length <= 30) return 13;
+  if (length <= 45) return 12;
+  if (length <= 60) return 11;
+
+  return 10;
+};
+
+const getCertificateIdFontSize = (
+  id: string,
+): number => {
+  const length =
+    id.trim().length;
+
+  if (length <= 30) return 10;
+  if (length <= 38) return 9;
+
+  return 8;
+};
+
+/**
+ * ============================================================
+ * GENERATE CERTIFICATE
+ * ============================================================
  */
 export function generateCertificatePdf(
   data: CertificatePdfData,
 ): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({
-      size: "A4",
-      layout: "landscape",
-      margin: 0,
-      autoFirstPage: true,
-    });
+  return new Promise(
+    (resolve, reject) => {
+      const doc =
+        new PDFDocument({
+          size: "A4",
+          layout: "landscape",
+          margin: 0,
+          autoFirstPage: true,
+        });
 
-    const chunks: Buffer[] = [];
+      const chunks: Buffer[] = [];
 
-    doc.on("data", (chunk: Buffer) => {
-      chunks.push(chunk);
-    });
+      doc.on(
+        "data",
+        (chunk: Buffer) => {
+          chunks.push(chunk);
+        },
+      );
 
-    doc.on("end", () => {
-      const pdfBuffer = Buffer.concat(chunks);
+      doc.on(
+        "end",
+        () => {
+          const pdfBuffer =
+            Buffer.concat(chunks);
 
-      if (pdfBuffer.length === 0) {
-        reject(
-          new Error(
-            "Generated certificate PDF is empty",
-          ),
-        );
-
-        return;
-      }
-
-      // PDF files must start with %PDF
-      const pdfHeader = pdfBuffer
-        .subarray(0, 4)
-        .toString("ascii");
-
-      if (pdfHeader !== "%PDF") {
-        reject(
-          new Error(
-            `Generated certificate is not a valid PDF. Header: ${pdfHeader}`,
-          ),
-        );
-
-        return;
-      }
-
-      resolve(pdfBuffer);
-    });
-
-    doc.on("error", (error) => {
-      reject(error);
-    });
-
-    (async () => {
-      try {
-        let templateBuffer: Buffer;
-
-        /*
-         * CUSTOM TEMPLATE
-         *
-         * If templateUrl exists, use the selected
-         * certificate template from the database.
-         */
-        if (data.templateUrl) {
-          templateBuffer =
-            await downloadImage(
-              data.templateUrl,
+          if (
+            pdfBuffer.length === 0
+          ) {
+            reject(
+              new Error(
+                "Generated certificate PDF is empty",
+              ),
             );
-        } else {
-          /*
-           * DEFAULT TEMPLATE
-           *
-           * No template selected means:
-           *
-           * certificate-template/assets/certificatepdf.png
+
+            return;
+          }
+
+          const header =
+            pdfBuffer
+              .subarray(0, 4)
+              .toString("ascii");
+
+          if (header !== "%PDF") {
+            reject(
+              new Error(
+                `Generated certificate is not a valid PDF. Header: ${header}`,
+              ),
+            );
+
+            return;
+          }
+
+          resolve(pdfBuffer);
+        },
+      );
+
+      doc.on(
+        "error",
+        reject,
+      );
+
+      (async () => {
+        try {
+          /**
+           * ====================================================
+           * SELECT TEMPLATE
+           * ====================================================
            */
-          const defaultTemplatePath =
-            getDefaultTemplatePath();
+          let templateBuffer: Buffer;
 
-          templateBuffer = fs.readFileSync(
-            defaultTemplatePath,
+          if (
+            data.templateUrl
+          ) {
+            templateBuffer =
+              await downloadImage(
+                data.templateUrl,
+              );
+          } else {
+            const defaultPath =
+              getDefaultTemplatePath();
+
+            templateBuffer =
+              fs.readFileSync(
+                defaultPath,
+              );
+          }
+
+          /**
+           * ====================================================
+           * PAGE
+           * ====================================================
+           */
+          const pageWidth =
+            doc.page.width;
+
+          const pageHeight =
+            doc.page.height;
+
+          /**
+           * ====================================================
+           * LAYOUT
+           * ====================================================
+           */
+          const layout =
+            normalizeLayout(
+              data.layout,
+            );
+
+          /**
+           * ====================================================
+           * BACKGROUND
+           * ====================================================
+           */
+          doc.image(
+            templateBuffer,
+            0,
+            0,
+            {
+              width: pageWidth,
+              height: pageHeight,
+            },
           );
+
+          /**
+           * ====================================================
+           * STUDENT NAME
+           * ====================================================
+           */
+          doc
+            .font("Times-Bold")
+            .fontSize(
+              getStudentNameFontSize(
+                data.studentName,
+              ),
+            )
+            .fillColor("#12233F")
+            .text(
+              data.studentName,
+              layout.studentName.x *
+                pageWidth,
+              layout.studentName.y *
+                pageHeight,
+              {
+                width:
+                  layout.studentName
+                    .width *
+                  pageWidth,
+
+                align: "center",
+
+                lineBreak: false,
+              },
+            );
+
+          /**
+           * ====================================================
+           * COURSE TITLE
+           * ====================================================
+           */
+          doc
+            .font("Times-Italic")
+            .fontSize(
+              getCourseFontSize(
+                data.courseTitle,
+              ),
+            )
+            .fillColor("#12233F")
+            .text(
+              data.courseTitle,
+              layout.courseTitle.x *
+                pageWidth,
+              layout.courseTitle.y *
+                pageHeight,
+              {
+                width:
+                  layout.courseTitle
+                    .width *
+                  pageWidth,
+
+                align: "center",
+
+                lineBreak: false,
+              },
+            );
+
+          /**
+           * ====================================================
+           * ISSUED DATE
+           * ====================================================
+           */
+          const issuedDate =
+            new Intl.DateTimeFormat(
+              "en-GB",
+              {
+                day: "2-digit",
+                month: "long",
+                year: "numeric",
+              },
+            ).format(
+              data.issuedAt,
+            );
+
+          doc
+            .font("Times-Roman")
+            .fontSize(10)
+            .fillColor("#12233F")
+            .text(
+              issuedDate,
+              layout.issuedDate.x *
+                pageWidth,
+              layout.issuedDate.y *
+                pageHeight,
+              {
+                width:
+                  layout.issuedDate
+                    .width *
+                  pageWidth,
+
+                align: "center",
+
+                lineBreak: false,
+              },
+            );
+
+          /**
+           * ====================================================
+           * CERTIFICATE ID
+           * ====================================================
+           */
+          doc
+            .font("Times-Roman")
+            .fontSize(
+              getCertificateIdFontSize(
+                data.certificateId,
+              ),
+            )
+            .fillColor("#12233F")
+            .text(
+              data.certificateId,
+              layout.certificateId.x *
+                pageWidth,
+              layout.certificateId.y *
+                pageHeight,
+              {
+                width:
+                  layout.certificateId
+                    .width *
+                  pageWidth,
+
+                align: "center",
+
+                lineBreak: false,
+              },
+            );
+
+          /**
+           * ====================================================
+           * FINALIZE
+           * ====================================================
+           */
+          doc.end();
+        } catch (error) {
+          reject(error);
         }
-
-        const pageWidth = doc.page.width;
-        const pageHeight = doc.page.height;
-
-        /*
-         * Certificate background
-         */
-        doc.image(
-          templateBuffer,
-          0,
-          0,
-          {
-            width: pageWidth,
-            height: pageHeight,
-          },
-        );
-
-        /*
-         * Student Name
-         */
-        doc
-          .font("Times-Bold")
-          .fontSize(
-            Math.min(
-              21,
-              Math.max(15, 460 / data.studentName.length),
-            ),
-          )
-          .fillColor("#12233F")
-          .text(
-            data.studentName,
-            pageWidth * 0.25,
-            pageHeight * 0.405,
-            {
-              width: pageWidth * 0.58,
-              align: "center",
-              lineBreak: false,
-            },
-          );
-
-        /*
-         * Course Name
-         */
-        doc
-          .font("Times-Italic")
-          .fontSize(
-            Math.min(
-              13,
-              Math.max(10, 320 / data.courseTitle.length),
-            ),
-          )
-          .fillColor("#12233F")
-          .text(
-            data.courseTitle,
-            pageWidth * 0.27,
-            pageHeight * 0.518,
-            {
-              width: pageWidth * 0.56,
-              align: "center",
-              lineBreak: false,
-            },
-          );
-
-        /*
-         * Issued Date
-         */
-        const issuedDate =
-          new Intl.DateTimeFormat(
-            "en-GB",
-            {
-              day: "2-digit",
-              month: "long",
-              year: "numeric",
-            },
-          ).format(data.issuedAt);
-
-        doc
-          .font("Times-Roman")
-          .fontSize(10)
-          .fillColor("#12233F")
-          .text(
-            issuedDate,
-            pageWidth * 0.28,
-            pageHeight * 0.754,
-            {
-              width: pageWidth * 0.16,
-              align: "center",
-              lineBreak: false,
-            },
-          );
-
-        /*
-         * Certificate ID
-         */
-        doc
-          .font("Times-Roman")
-          .fontSize(
-            Math.min(
-              9,
-              Math.max(7, 190 / data.certificateId.length),
-            ),
-          )
-          .fillColor("#12233F")
-          .text(
-            data.certificateId,
-            pageWidth * 0.50,
-            pageHeight * 0.754,
-            {
-              width: pageWidth * 0.23,
-              align: "center",
-              lineBreak: false,
-            },
-          );
-
-        /*
-         * Finalize PDF
-         */
-        doc.end();
-      } catch (error) {
-        reject(error);
-      }
-    })();
-  });
+      })();
+    },
+  );
 }

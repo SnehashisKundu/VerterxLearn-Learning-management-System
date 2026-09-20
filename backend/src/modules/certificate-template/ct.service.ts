@@ -1,19 +1,31 @@
+import { Prisma } from "../../generated/prisma/client";
 import { prisma } from "../../lib/prisma";
 
+import type {
+  CertificateLayout,
+} from "./ct.validation";
+
+/**
+ * Creates a new certificate template.
+ */
 export async function createCertificateTemplate(
   name: string,
-  templateUrl: string
+  templateUrl: string,
+  layout?: CertificateLayout,
 ) {
   return prisma.certificateTemplate.create({
     data: {
       name,
       templateUrl,
+      layout: layout ?? Prisma.JsonNull,
       isActive: false,
     },
+
     select: {
       id: true,
       name: true,
       templateUrl: true,
+      layout: true,
       isActive: true,
       createdAt: true,
       updatedAt: true,
@@ -21,15 +33,20 @@ export async function createCertificateTemplate(
   });
 }
 
+/**
+ * Returns all certificate templates.
+ */
 export async function getCertificateTemplates() {
   return prisma.certificateTemplate.findMany({
     orderBy: {
       createdAt: "desc",
     },
+
     select: {
       id: true,
       name: true,
       templateUrl: true,
+      layout: true,
       isActive: true,
       createdAt: true,
       updatedAt: true,
@@ -37,8 +54,11 @@ export async function getCertificateTemplates() {
   });
 }
 
+/**
+ * Activates exactly one certificate template.
+ */
 export async function activateCertificateTemplate(
-  templateId: string
+  templateId: string,
 ) {
   const template =
     await prisma.certificateTemplate.findUnique({
@@ -48,59 +68,74 @@ export async function activateCertificateTemplate(
     });
 
   if (!template) {
-    throw new Error("Certificate template not found");
-  }
-
-  return prisma.$transaction(async (tx) => {
-    await tx.certificateTemplate.updateMany({
-      where: {
-        isActive: true,
-      },
-      data: {
-        isActive: false,
-      },
-    });
-
-    return tx.certificateTemplate.update({
-      where: {
-        id: templateId,
-      },
-      data: {
-        isActive: true,
-      },
-      select: {
-        id: true,
-        name: true,
-        templateUrl: true,
-        isActive: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
-  });
-}
-
-export async function getActiveCertificateTemplate() {
-  const template =
-    await prisma.certificateTemplate.findFirst({
-      where: {
-        isActive: true,
-      },
-      select: {
-        id: true,
-        name: true,
-        templateUrl: true,
-        isActive: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
-
-  if (!template) {
     throw new Error(
-      "No active certificate template found"
+      "Certificate template not found",
     );
   }
 
-  return template;
+  return prisma.$transaction(
+    async (tx) => {
+      /**
+       * Deactivate all templates first.
+       */
+      await tx.certificateTemplate.updateMany({
+        where: {
+          isActive: true,
+        },
+
+        data: {
+          isActive: false,
+        },
+      });
+
+      /**
+       * Activate selected template.
+       */
+      return tx.certificateTemplate.update({
+        where: {
+          id: templateId,
+        },
+
+        data: {
+          isActive: true,
+        },
+
+        select: {
+          id: true,
+          name: true,
+          templateUrl: true,
+          layout: true,
+          isActive: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+    },
+  );
+}
+
+/**
+ * Returns currently active certificate template.
+ *
+ * Returns null when no template is active.
+ *
+ * This is intentional because the certificate module
+ * must fall back to the default local template.
+ */
+export async function getActiveCertificateTemplate() {
+  return prisma.certificateTemplate.findFirst({
+    where: {
+      isActive: true,
+    },
+
+    select: {
+      id: true,
+      name: true,
+      templateUrl: true,
+      layout: true,
+      isActive: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  });
 }
