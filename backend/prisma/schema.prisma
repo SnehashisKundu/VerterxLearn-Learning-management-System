@@ -35,18 +35,18 @@ model User {
   notifications           Notification[]
   passwordResetTokens     PasswordResetToken[]
   payments                Payment[]
+  pointTransactions       PointTransaction[]
+  pointWallet             PointWallet?
   quizAttempts            QuizAttempt[]
   recommendations         Recommendation[]
   refreshTokens           RefreshToken[]
+  redemptions             RewardRedemption[]
   streak                  Streak?
   studentIdCard           StudentIdCard?
   studyPlans              StudyPlan[]
   topicMasteries          TopicMastery[]
   userBadges              UserBadge[]
   userRoles               UserRole[]
-  pointWallet             PointWallet?
-  pointTransactions       PointTransaction[]
-  redemptions             RewardRedemption[]
 
   @@map("users")
 }
@@ -337,14 +337,13 @@ model Certificate {
 }
 
 model CertificateTemplate {
-  id           String   @id @default(uuid()) @db.Uuid
-  name         String   @db.VarChar(150)
-  templateUrl  String   @map("template_url")
+  id           String        @id @default(uuid()) @db.Uuid
+  name         String        @db.VarChar(150)
+  templateUrl  String        @map("template_url")
+  isActive     Boolean       @default(false) @map("is_active")
+  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
   layout       Json?
-  isActive     Boolean  @default(false) @map("is_active")
-  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
-
   certificates Certificate[]
 
   @@index([isActive])
@@ -390,8 +389,7 @@ model PointWallet {
   balance   Int      @default(0)
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("point_wallets")
 }
@@ -404,31 +402,23 @@ model PointTransaction {
   reason      String               @db.VarChar(255)
   referenceId String?              @map("reference_id") @db.Uuid
   createdAt   DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([createdAt])
   @@map("point_transactions")
 }
 
-enum PointTransactionType {
-  EARN
-  REDEEM
-  ADJUSTMENT
-}
-
 model Reward {
-  id          String   @id @default(uuid()) @db.Uuid
-  name        String   @db.VarChar(150)
+  id          String             @id @default(uuid()) @db.Uuid
+  name        String             @db.VarChar(150)
   description String?
-  imageUrl    String?  @map("image_url")
-  type        RewardType @default(DIGITAL)
+  imageUrl    String?            @map("image_url")
   points      Int
-  isActive    Boolean  @default(true) @map("is_active")
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
-
+  isActive    Boolean            @default(true) @map("is_active")
+  createdAt   DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+  type        RewardType         @default(DIGITAL)
   redemptions RewardRedemption[]
 
   @@index([points])
@@ -442,42 +432,20 @@ model RewardRedemption {
   rewardId       String                 @map("reward_id") @db.Uuid
   points         Int
   status         RewardRedemptionStatus @default(PENDING)
-
+  createdAt      DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
   trackingNumber String?                @map("tracking_number") @db.VarChar(100)
   carrier        String?                @db.VarChar(100)
-
   shippedAt      DateTime?              @map("shipped_at") @db.Timestamptz(6)
   deliveredAt    DateTime?              @map("delivered_at") @db.Timestamptz(6)
   claimedAt      DateTime?              @map("claimed_at") @db.Timestamptz(6)
   fulfilledAt    DateTime?              @map("fulfilled_at") @db.Timestamptz(6)
-
-  createdAt      DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  reward Reward @relation(fields: [rewardId], references: [id], onDelete: Cascade)
+  reward         Reward                 @relation(fields: [rewardId], references: [id], onDelete: Cascade)
+  user           User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([rewardId])
   @@index([status])
   @@map("reward_redemptions")
-}
-
-enum RewardType {
-  DIGITAL
-  PHYSICAL
-}
-
-
-enum RewardRedemptionStatus {
-  PENDING
-  APPROVED
-  PROCESSING
-  SHIPPED
-  IN_TRANSIT
-  DELIVERED
-  CLAIMED
-  FULFILLED
-  CANCELLED
 }
 
 model Streak {
@@ -558,10 +526,10 @@ model DocumentChunk {
   course       Course                 @relation(fields: [courseId], references: [id], onDelete: Cascade)
   lecture      Lectures?              @relation(fields: [lectureId], references: [id], onDelete: Cascade)
 
+  @@unique([lectureId, chunkIndex], map: "document_chunks_lecture_chunk_unique")
   @@index([courseId])
   @@index([lectureId])
   @@index([lectureId, startSeconds, endSeconds])
-  @@unique([lectureId, chunkIndex], map: "document_chunks_lecture_chunk_unique")
   @@map("document_chunks")
 }
 
@@ -810,4 +778,27 @@ model Attendance {
   @@unique([sessionId, studentId])
   @@index([studentId])
   @@map("attendances")
+}
+
+enum PointTransactionType {
+  EARN
+  REDEEM
+  ADJUSTMENT
+}
+
+enum RewardType {
+  DIGITAL
+  PHYSICAL
+}
+
+enum RewardRedemptionStatus {
+  PENDING
+  APPROVED
+  FULFILLED
+  CANCELLED
+  PROCESSING
+  SHIPPED
+  IN_TRANSIT
+  DELIVERED
+  CLAIMED
 }
