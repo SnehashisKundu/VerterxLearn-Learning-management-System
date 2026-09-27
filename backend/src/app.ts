@@ -2,6 +2,10 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
+import swaggerUi from "swagger-ui-express";
+
+import swaggerSpec from "./config/swagger";
+
 import authRoutes from "./modules/auth/auth.routes";
 import courseRoutes from "./modules/course/crs.routes";
 import moduleRoutes from "./modules/module/mod.routes";
@@ -34,6 +38,10 @@ import analyticsRoutes from "./modules/analytics/an.routes";
 
 export const app = express();
 
+/* ─────────────────────────────────────────────
+   Security & Middleware
+───────────────────────────────────────────── */
+
 app.use(helmet());
 
 app.use(
@@ -44,40 +52,17 @@ app.use(
 );
 
 app.use(express.json());
-
 app.use(express.urlencoded({ extended: true }));
 
 app.use(morgan("dev"));
 
-app.use("/api/auth", authRoutes);
-app.use("/api/courses", courseRoutes);
-app.use("/api", moduleRoutes);
-app.use("/api", lectureRoutes);
-app.use("/api/lecture-progress", lectureProgressRoutes);
-app.use("/api", enrollmentRoutes);
-app.use("/api", noteRoutes);
-app.use("/api", bookmarkRoutes);
-app.use("/api", lectureResourceRoutes);
-app.use("/api", documentChunkRoutes);
-app.use("/api", quizRoutes);
-app.use("/api", quizQuestionRoutes);
-app.use("/api", quizOptionRoutes);
-app.use("/api", quizAttemptRoutes);
-app.use("/api", quizAnswerRoutes);
-app.use("/api", assignmentRoutes);
-app.use("/api/student-id-card",idCardRoutes);
-app.use( "/api/attendance",attendanceRoutes);
-app.use("/api/certificates",crRoutes);
-app.use("/api/certificate-templates",certificateTemplateRoutes);
-app.use("/api/ai-tutor", aiTutorRoutes);
-app.use("/api", flashcardRoutes);
-app.use("/api", roadmapRoutes);
-app.use("/api/badges", badgeRoutes);
-app.use("/api/point-rules", pointRuleRoutes);
-app.use("/api/point-wallet", pointWalletRoutes);
-app.use("/api/rewards", rewardRoutes);
-app.use("/api/streak", streakRoutes);
-app.use("/api/analytics", analyticsRoutes);
+/* ─────────────────────────────────────────────
+   Health Check
+───────────────────────────────────────────── */
+
+app.get("/", (_req, res) => {
+  res.redirect("/api-docs");
+});
 
 app.get("/health", (_req, res) => {
   res.status(200).json({
@@ -85,3 +70,62 @@ app.get("/health", (_req, res) => {
     message: "LMS-AI API is healthy",
   });
 });
+
+/* ─────────────────────────────────────────────
+   API Routes
+───────────────────────────────────────────── */
+
+app.use("/api/auth", authRoutes);
+app.use("/api/courses", courseRoutes);
+
+app.use("/api", moduleRoutes);
+app.use("/api", lectureRoutes);
+app.use("/api/lecture-progress", lectureProgressRoutes);
+
+app.use("/api", enrollmentRoutes);
+app.use("/api", noteRoutes);
+app.use("/api", bookmarkRoutes);
+app.use("/api", lectureResourceRoutes);
+app.use("/api", documentChunkRoutes);
+
+app.use("/api", quizRoutes);
+app.use("/api", quizQuestionRoutes);
+app.use("/api", quizOptionRoutes);
+app.use("/api", quizAttemptRoutes);
+app.use("/api", quizAnswerRoutes);
+
+app.use("/api", assignmentRoutes);
+
+app.use("/api/student-id-card", idCardRoutes);
+app.use("/api/attendance", attendanceRoutes);
+
+app.use("/api/certificates", crRoutes);
+app.use("/api/certificate-templates", certificateTemplateRoutes);
+
+app.use("/api/ai-tutor", aiTutorRoutes);
+
+app.use("/api", flashcardRoutes);
+app.use("/api", roadmapRoutes);
+
+app.use("/api/badges", badgeRoutes);
+
+app.use("/api/point-rules", pointRuleRoutes);
+app.use("/api/point-wallet", pointWalletRoutes);
+
+app.use("/api/rewards", rewardRoutes);
+app.use("/api/streak", streakRoutes);
+
+app.use("/api/analytics", analyticsRoutes);
+
+/* ─────────────────────────────────────────────
+   Swagger API Documentation
+───────────────────────────────────────────── */
+
+app.use(
+  "/api-docs",
+  swaggerUi.serve,
+  swaggerUi.setup(swaggerSpec, {
+    explorer: true,
+    customSiteTitle: "VertexLearn LMS-AI API Docs",
+  }),
+);
